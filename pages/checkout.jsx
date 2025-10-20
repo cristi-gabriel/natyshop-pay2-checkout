@@ -46,7 +46,7 @@ export default function Checkout() {
       ]
     }
 
-    // begin_checkout → GTM
+    // begin_checkout → GTM (fără să blocăm flow-ul)
     try {
       window.dataLayer = window.dataLayer || []
       window.dataLayer.push({ event: 'begin_checkout', user_data: { email: payload.customer.email } })
@@ -60,8 +60,9 @@ export default function Checkout() {
         body: JSON.stringify(payload)
       })
       const out = await res.json()
-      if (out.url) location.href = out.url
-      else {
+      if (out.url) {
+        location.href = out.url
+      } else {
         setErr(out.error || 'Eroare creare sesiune')
         setBusy(false)
       }
@@ -94,8 +95,22 @@ export default function Checkout() {
           <input name="city" required placeholder="Oraș" className="border p-3 rounded" />
           <input name="postal_code" required placeholder="Cod poștal" className="border p-3 rounded" />
         </div>
+
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" required /> Accept termenii & condițiile
+          <input type="checkbox" required />
+          <span>Accept termenii & condițiile</span>
         </label>
+
         {err && <div className="text-sm text-red-600">{err}</div>}
-        <button disabled=
+
+        <button
+          type="submit"
+          disabled={!canShip || busy}
+          className="w-full p-3 rounded bg-black text-white disabled:opacity-60"
+        >
+          {busy ? 'Se încarcă…' : `Plătește (${currency})`}
+        </button>
+      </form>
+    </main>
+  )
+}
