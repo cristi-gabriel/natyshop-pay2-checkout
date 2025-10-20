@@ -1,39 +1,29 @@
-import Stripe from 'stripe';
+import Stripe from 'stripe'
+import { buffer } from 'micro'
 
-export const config = { api: { bodyParser: false } };
+// IMPORTANT: Next API route must allow raw body for Stripe signature verification
+export const config = { api: { bodyParser: false } }
 
-function buffer(readable) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    readable.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
-    readable.on('end', () => resolve(Buffer.concat(chunks)));
-    readable.on('error', reject);
-  });
-}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
 export default async function handler(req, res) {
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
-  const sig = req.headers['stripe-signature'];
-  const buf = await buffer(req);
-  let event;
+  if (req.method !== 'POST') return res.status(405).end()
+
+  let event
   try {
-    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET || '');
+    const sig = req.headers['stripe-signature']
+    const buf = await buffer(req)
+    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET)
   } catch (err) {
-    console.error('Webhook signature verification failed.', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
+    console.error('[Stripe webhook] signature error', err.message)
+    return res.status(400).send(`Webhook Error: ${err.message}`)
   }
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object;
-    // TODO: create Shopify order via Admin API (pseudo):
-    // await fetch(process.env.SHOPIFY_ADMIN_API_BASE + '/orders.json', {
-    //   method: 'POST',
-    //   headers: {
-    //     'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ order: { /* map line items + customer */ } })
-    // });
+    const session = event.data.object
+    // TODO (opțional): creează comanda în Shopify prin Admin API folosind session.id / client_reference_id
+    // console.log('Paid session:', session.id)
   }
-  res.json({ received: true });
+
+  res.json({ received: true })
 }
